@@ -1,51 +1,27 @@
-# Koch Browser optimized build flags
-# Performance and memory optimization
-
-# PGO (Profile Guided Optimization) - disabled for faster builds, enable for release
-chrome_pgo_phase=0
-
-# Clang configuration
 clang_use_chrome_plugins=false
-
-# Disable unnecessary features for better performance
+chrome_pgo_phase=0
 disable_fieldtrial_testing_config=true
+enable_aggressive_tab_discarding=true
+enable_backing_store_limit_for_canvas=true
+enable_browser_side_navigation=false
 enable_hangout_services_extension=false
 enable_mdns=false
+enable_one_click_signin=false
+enable_print_preview=false
 enable_remoting=false
 enable_reporting=false
 enable_service_discovery=false
-
-# Widevine support (for DRM content)
+enable_tab_discarding=true
 enable_widevine=true
-
-# Reduce binary size
 exclude_unwind_tables=true
-
-# Empty Google API keys (privacy)
 google_api_key=""
 google_default_client_id=""
 google_default_client_secret=""
-
-# Safe browsing disabled (privacy-focused)
-safe_browsing_mode=0
-
-# Allow building with warnings (faster iteration)
-treat_warnings_as_errors=false
-
-# Use unofficial API keys
-use_official_google_api_keys=false
-use_unofficial_version_number=false
-
-# V8 optimizations
-v8_drumbrake_bounds_checks=true
-
-# Koch Browser: Additional memory optimizations
-enable_backing_store_limit_for_canvas=true
 max_renderer_memory=2048
-use_preinstalled_included_apps=false
-enable_print_preview=false
-enable_one_click_signin=false
+safe_browsing_mode=0
 safebrowsing_enable=false
-enable_browser_side_navigation=false
-enable_tab_discarding=true
-enable_aggressive_tab_discarding=true
+treat_warnings_as_errors=false
+use_official_google_api_keys=false
+use_preinstalled_included_apps=false
+use_unofficial_version_number=false
+v8_drumbrake_bounds_checks=true
