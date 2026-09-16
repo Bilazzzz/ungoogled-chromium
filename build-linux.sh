@@ -8,14 +8,16 @@ echo "  OS: Arch Linux / CachyOS"
 echo "=================================================="
 
 # 1. Подготовка окружения
-# Исправлено: libsensors -> lm_sensors, добавлены недостающие зависимости
+# Исправлено: удалены несуществующие пакеты (piex, libvdpua)
+# piex - это Python-библиотека, не нужна для сборки
+# libvdpau_va_gl заменен на libvdpau и mesa-vdpau
 echo "Installing build dependencies..."
 sudo pacman -S --needed --noconfirm base-devel clang lld ninja python git curl wget gperf bison \
      jsoncpp libusb pulseaudio alsa-lib dbus xorg-server-xvfb \
      gtk3 libxcrypt-compat systemd lm_sensors jq \
-     libcups piex freetype2 harfbuzz icu libdrm libxkbcommon \
+     libcups freetype2 harfbuzz icu libdrm libxkbcommon \
      xcb-util-image xcb-util-keysyms xcb-util-renderutil xcb-util-wm \
-     wayland wayland-protocols libva libvdpua libegl libglvnd
+     wayland wayland-protocols libva libvdpau mesa-vdpau libegl libglvnd
 
 # 2. Настройка переменных
 export CHROMIUM_VERSION="153.0.8010.47"
