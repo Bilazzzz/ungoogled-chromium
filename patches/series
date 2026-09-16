@@ -109,3 +109,5 @@ extra/ungoogled-chromium/disable-ai-search-shortcuts.patch
 extra/ungoogled-chromium/disable-fedcm-by-default.patch
 extra/ungoogled-chromium/bundle-hyphenation-patterns.patch
 extra/ungoogled-chromium/add-flag-for-disabling-jit.patch
+koch-browser/0001-branding.patch
+koch-browser/0002-koch-ntp-integration.patch
