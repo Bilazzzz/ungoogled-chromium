@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<grit latest_public_release="0" current_release="1" output_all_resource_defines="false">
+  <outputs>
+    <output filename="grit/chrome_browser_koch_new_tab_page_header.h" type="rc_header" context="default" />
+    <output filename="grit/chrome_browser_koch_new_tab_page_map.cc" type="resource_file_map" context="default" />
+  </outputs>
+  <structures>
+    <structure name="IDR_KOCH_NEW_TAB_PAGE_HTML" filepath="koch_new_tab_page.html" type="chrome_html" />
+    <structure name="IDR_KOCH_NEW_TAB_PAGE_CSS" filepath="koch_new_tab_page.css" type="chrome_css" />
+    <structure name="IDR_KOCH_NEW_TAB_PAGE_JS" filepath="koch_new_tab_page.js" type="chrome_js" />
+  </structures>
+</grit>
