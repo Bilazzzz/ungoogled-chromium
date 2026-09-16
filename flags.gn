@@ -1,5 +1,5 @@
-clang_use_chrome_plugins=false
 chrome_pgo_phase=0
+clang_use_chrome_plugins=false
 disable_fieldtrial_testing_config=true
 enable_aggressive_tab_discarding=true
 enable_backing_store_limit_for_canvas=true

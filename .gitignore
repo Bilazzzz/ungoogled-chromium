@@ -2,13 +2,10 @@
 # Build system files
 *.gn
 *.gni
-*.gyp
-*.gypi
 
 # Patches directory
 patches/
 
 # Original rules preserved
-flags.gn
-patches/series
+*.log
 ```
