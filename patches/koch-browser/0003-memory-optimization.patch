@@ -1,0 +1,126 @@
+From: Koch Browser Developers <koch-browser@example.com>
+Subject: [PATCH] Memory and performance optimization
+
+Optimize memory usage and improve stability by:
+- Aggressive tab discarding under memory pressure
+- Reduced background activity
+- Optimized process model
+---
+diff --git a/chrome/browser/BUILD.gn b/chrome/browser/BUILD.gn
+index aaa1111..bbb2222 100644
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -500,6 +500,8 @@ static_library("browser") {
+     "//components/web_modal",
+     "//components/zoom",
+     "//content/public/browser",
++    "//components/page_load_metrics/browser",
++    "//chrome/browser/performance_manager",
+   ]
+ 
+   if (is_linux) {
+diff --git a/chrome/browser/about_flags.cc b/chrome/browser/about_flags.cc
+index ccc3333...ddd4444 100644
+--- a/chrome/browser/about_flags.cc
++++ b/chrome/browser/about_flags.cc
+@@ -1500,6 +1500,16 @@ const FeatureEntry kFeatureEntries[] = {
+      flag_descriptions::kWebAssemblyLazyCompilationName,
+      flag_descriptions::kWebAssemblyLazyCompilationDescription, kOsAll,
+      FEATURE_VALUE_TYPE(features::kWebAssemblyLazyCompilation)},
++
++    {"enable-aggressive-tab-discard",
++     flag_descriptions::kEnableAggressiveTabDiscardName,
++     flag_descriptions::kEnableAggressiveTabDiscardDescription, kOsAll,
++     SINGLE_VALUE_TYPE_AND_VALUE(
++         switches::kMemoryPressureThreshold, "high")},
++    
++    {"disable-prefetch", flag_descriptions::kDisablePrefetchName,
++     flag_descriptions::kDisablePrefetchDescription, kOsAll,
++     SINGLE_VALUE_TYPE_AND_VALUE(switches::kNoPrefetch, "")},
+ #endif
+ 
+ // IMPORTANT: Do not change the logic of how flags are added above!
+diff --git a/chrome/browser/chrome_content_browser_client.cc b/chrome/browser/chrome_content_browser_client.cc
+index eee5555...fff6666 100644
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -2800,6 +2800,12 @@ void ChromeContentBrowserClient::AppendExtraCommandLineSwitches(
+   command_line->AppendSwitch(switches::kDisableBackgroundTimerThrottling);
+   command_line->AppendSwitch(switches::kDisableRenderWidgetSleeping);
+   
++  // Koch Browser: Aggressive memory optimization
++  command_line->AppendSwitchASCII(switches::kMemoryPressureThreshold, "high");
++  command_line->AppendSwitch(switches::kNoFirstRun);
++  command_line->AppendSwitch(switches::kNoDefaultBrowserCheck);
++  command_line->AppendSwitch(switches::kDisableBackgroundNetworkRequests);
++
+   // Enable lazy loading for iframes
+   command_line->AppendSwitchASCII(switches::kEnableFeatures,
+                                   "LazyFrameLoading,LazyImageLoading");
+diff --git a/components/page_load_metrics/browser/metrics_web_contents_observer.cc b/components/page_load_metrics/browser/metrics_web_contents_observer.cc
+index ggg7777...hhh8888 100644
+--- a/components/page_load_metrics/browser/metrics_web_contents_observer.cc
++++ b/components/page_load_metrics/browser/metrics_web_contents_observer.cc
+@@ -450,6 +450,11 @@ void MetricsWebContentsObserver::OnPageIdle() {
+   // Notify the renderer that this page is idle and can be discarded
+   if (base::FeatureList::IsEnabled(features::kAggressiveTabDiscarding)) {
+     content::GetRenderProcessHost()->ShutdownForBackgroundNavigation();
++    
++    // Koch Browser: More aggressive discarding
++    if (web_contents_->GetController().GetLastCommittedEntry()) {
++      web_contents_->DispatchMessageToWorker("page-lifecycle", "discard");
++    }
+   }
+ }
+diff --git a/content/browser/renderer_host/render_process_host_impl.cc b/content/browser/renderer_host/render_process_host_impl.cc
+index iii9999...jjj0000 100644
+--- a/content/browser/renderer_host/render_process_host_impl.cc
++++ b/content/browser/renderer_host/render_process_host_impl.cc
+@@ -3200,6 +3200,14 @@ void RenderProcessHostImpl::Init() {
+   // Initialize message filters
+   filter_.AddFilter(newmojom::FrameSinkProvider());
+   
++  // Koch Browser: Reduce default renderer priority
++  if (!base::CommandLine::ForCurrentProcess()->HasSwitch(
++          switches::kRendererPriorityBoost)) {
++    host_->SetProcessPriority(
++        base::kLowestProcessPriority);
++  }
++
+   // Create the renderer process with appropriate sandbox type
+   std::unique_ptr<ServiceManager> service_manager;
+   if (!InSameSecurityContextAsParent()) {
+diff --git a/content/browser/memory_pressure_monitor.cc b/content/browser/memory_pressure_monitor.cc
+index kkk1111...lll2222 100644
+--- a/content/browser/memory_pressure_monitor.cc
++++ b/content/browser/memory_pressure_monitor.cc
+@@ -85,6 +85,11 @@ void MemoryPressureMonitor::OnMemoryPressure(
+   switch (level) {
+     case base::MemoryPressureListener::MEMORY_PRESSURE_LEVEL_MODERATE:
+       HandleModeratePressure();
++      // Koch Browser: Trigger earlier discarding
++      if (delegate_) {
++        delegate_->ReclaimMemory(
++            base::MemoryPressureListener::MEMORY_PRESSURE_LEVEL_CRITICAL);
++      }
+       break;
+     case base::MemoryPressureListener::MEMORY_PRESSURE_LEVEL_CRITICAL:
+       HandleCriticalPressure();
+diff --git a/chrome/browser/ui/tabs/tab_strip_model.cc b/chrome/browser/ui/tabs/tab_strip_model.cc
+index mmm3333...nnn4444 100644
+--- a/chrome/browser/ui/tabs/tab_strip_model.cc
++++ b/chrome/browser/ui/tabs/tab_strip_model.cc
+@@ -1200,6 +1200,13 @@ void TabStripModel::DiscardTabAt(int index, DiscardReason reason) {
+   if (!CanCloseTabAt(index))
+     return;
+ 
++  // Koch Browser: Never discard active tab
++  if (active_index_ == index && count() > 1) {
++    DVLOG(1) << "Skipping discard of active tab";
++    return;
++  }
++
++  // Skip recently used tabs
+   auto* contents = GetWebContentsAt(index);
+   if (contents && !ShouldDiscardWebContents(contents, reason)) {
+     return;

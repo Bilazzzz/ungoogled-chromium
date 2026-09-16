@@ -1,0 +1,47 @@
+# Copyright 2024 Koch Browser Developers. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+import("//chrome/resources/build_flags.gni")
+import("//ui/webui_resources.gni")
+
+chrome_pak_inputs("koch_new_tab_page_pak_files") {
+  sources = [
+    "koch_new_tab_page.html",
+    "koch_new_tab_page.css",
+    "koch_new_tab_page.js",
+  ]
+  path_prefix = "chrome/browser/resources/koch_new_tab_page"
+  output_path = "$root_gen_dir/chrome/browser_koch_new_tab_page.grd.pak"
+}
+
+grit("koch_new_tab_page_grd") {
+  source = "koch_new_tab_page.grd"
+  outputs = [
+    "grit/chrome_browser_koch_new_tab_page_header.h",
+    "grit/chrome_browser_koch_new_tab_page_map.cc",
+  ]
+  defines = chrome_grit_defines()
+  deps = [
+    ":koch_new_tab_page_pak_files",
+  ]
+}
+
+source_set("koch_new_tab_page") {
+  sources = [
+    "koch_new_tab_page_handler.cc",
+    "koch_new_tab_page_handler.h",
+    "koch_new_tab_page_ui.cc",
+    "koch_new_tab_page_ui.h",
+  ]
+
+  deps = [
+    ":koch_new_tab_page_grd",
+    "//base",
+    "//chrome/browser:browser",
+    "//chrome/common",
+    "//components/prefs",
+    "//content/public/browser",
+    "//ui/webui",
+  ]
+}

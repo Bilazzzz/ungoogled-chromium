@@ -111,3 +111,4 @@ extra/ungoogled-chromium/bundle-hyphenation-patterns.patch
 extra/ungoogled-chromium/add-flag-for-disabling-jit.patch
 koch-browser/0001-branding.patch
 koch-browser/0002-koch-ntp-integration.patch
+koch-browser/0003-memory-optimization.patch

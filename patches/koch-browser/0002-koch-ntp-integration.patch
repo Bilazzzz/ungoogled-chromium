@@ -1,0 +1,336 @@
+From: Koch Browser Developers <koch-browser@example.com>
+Subject: [PATCH] Integrate KOCH BRAUZER New Tab Page
+
+Embed KOCH BRAUZER extension directly into Chromium source code
+and set it as the default new tab page.
+---
+diff --git a/chrome/browser/ui/webui/BUILD.gn b/chrome/browser/ui/webui/BUILD.gn
+index 3333333..4444444 100644
+--- a/chrome/browser/ui/webui/BUILD.gn
++++ b/chrome/browser/ui/webui/BUILD.gn
+@@ -50,6 +50,7 @@ group("webui") {
+     "ntp_tiles",
+     "omnibox",
+     "settings",
++    "koch_new_tab_page",
+     "sync_promo",
+   ]
+ }
+diff --git a/chrome/browser/resources/koch_new_tab_page/koch_new_tab_page.grd b/chrome/browser/resources/koch_new_tab_page/koch_new_tab_page.grd
+new file mode 100644
+index 0000000..6666666
+--- /dev/null
++++ b/chrome/browser/resources/koch_new_tab_page/koch_new_tab_page.grd
+@@ -0,0 +1,12 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<grit latest_public_release="0" current_release="1" output_all_resource_defines="false">
++  <outputs>
++    <output filename="grit/chrome_browser_koch_new_tab_page_header.h" type="rc_header" context="default" />
++    <output filename="grit/chrome_browser_koch_new_tab_page_map.cc" type="resource_file_map" context="default" />
++  </outputs>
++  <structures>
++    <structure name="IDR_KOCH_NEW_TAB_PAGE_HTML" filepath="koch_new_tab_page.html" type="chrome_html" />
++    <structure name="IDR_KOCH_NEW_TAB_PAGE_CSS" filepath="koch_new_tab_page.css" type="chrome_css" />
++    <structure name="IDR_KOCH_NEW_TAB_PAGE_JS" filepath="koch_new_tab_page.js" type="chrome_js" />
++  </structures>
++</grit>
+diff --git a/chrome/browser/ui/webui/koch_new_tab_page/BUILD.gn b/chrome/browser/ui/webui/koch_new_tab_page/BUILD.gn
+new file mode 100644
+index 0000000..5555555
+--- /dev/null
++++ b/chrome/browser/ui/webui/koch_new_tab_page/BUILD.gn
+@@ -0,0 +1,44 @@
++# Copyright 2024 Koch Browser Developers. All rights reserved.
++# Use of this source code is governed by a BSD-style license that can be
++# found in the LICENSE file.
++
++import("//chrome/resources/build_flags.gni")
++import("//ui/webui_resources.gni")
++
++chrome_pak_inputs("koch_new_tab_page_pak_files") {
++  sources = [
++    "koch_new_tab_page.html",
++    "koch_new_tab_page.css",
++    "koch_new_tab_page.js",
++  ]
++  path_prefix = "chrome/browser/resources/koch_new_tab_page"
++  output_path = "$root_gen_dir/chrome/browser_koch_new_tab_page.grd.pak"
++}
++
++grit("koch_new_tab_page_grd") {
++  source = "koch_new_tab_page.grd"
++  outputs = [
++    "grit/chrome_browser_koch_new_tab_page_header.h",
++    "grit/chrome_browser_koch_new_tab_page_map.cc",
++  ]
++  defines = chrome_grit_defines()
++  deps = [
++    ":koch_new_tab_page_pak_files",
++  ]
++}
++
++source_set("koch_new_tab_page") {
++  sources = [
++    "koch_new_tab_page_handler.cc",
++    "koch_new_tab_page_handler.h",
++    "koch_new_tab_page_ui.cc",
++    "koch_new_tab_page_ui.h",
++  ]
++
++  deps = [
++    ":koch_new_tab_page_grd",
++    "//base",
++    "//chrome/browser:browser",
++    "//chrome/common",
++    "//components/prefs",
++    "//content/public/browser",
++    "//ui/webui",
++  ]
++}
+diff --git a/chrome/browser/ui/webui/koch_new_tab_page/koch_new_tab_page_ui.cc b/chrome/browser/ui/webui/koch_new_tab_page/koch_new_tab_page_ui.cc
+new file mode 100644
+index 0000000..8888888
+--- /dev/null
++++ b/chrome/browser/ui/webui/koch_new_tab_page/koch_new_tab_page_ui.cc
+@@ -0,0 +1,67 @@
++// Copyright 2024 Koch Browser Developers. All rights reserved.
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "chrome/browser/ui/webui/koch_new_tab_page/koch_new_tab_page_ui.h"
++
++#include "chrome/browser/ui/webui/koch_new_tab_page/koch_new_tab_page_handler.h"
++#include "chrome/grit/chrome_browser_koch_new_tab_page_header.h"
++#include "components/grit/components_scaled_resources.h"
++#include "content/public/browser/url_data_source.h"
++#include "content/public/browser/web_contents.h"
++#include "content/public/browser/web_ui.h"
++#include "content/public/browser/web_ui_data_source.h"
++#include "content/public/browser/web_ui_message_handler.h"
++#include "net/base/data_url.h"
++#include "ui/base/resource/resource_bundle.h"
++
++namespace {
++
++constexpr char kChromeUIKochNewTabHost[] = "koch-new-tab-page";
++
++}  // namespace
++
++KochNewTabPageUI::KochNewTabPageUI(content::WebUI* web_ui)
++    : content::WebUIController(web_ui) {
++  content::WebUIDataSource* source =
++      content::WebUIDataSource::Create(kChromeUIKochNewTabHost);
++
++  source->SetDefaultResource(IDR_KOCH_NEW_TAB_PAGE_HTML);
++  source->AddResourcePath("koch_new_tab_page.css", IDR_KOCH_NEW_TAB_PAGE_CSS);
++  source->AddResourcePath("koch_new_tab_page.js", IDR_KOCH_NEW_TAB_PAGE_JS);
++
++  source->SetContentSecurityPolicy(
++      "script-src 'self' 'unsafe-inline' https://fonts.cdnfonts.com; "
++      "object-src 'self'; "
++      "connect-src 'self' https://api.open-meteo.com https://geocoding-api.open-meteo.com;");
++
++  content::WebUIDataSource::Add(web_ui->GetWebContents()->GetBrowserContext(),
++                                source);
++
++  auto* handler = new KochNewTabPageHandler(web_ui);
++  web_ui->RegisterMessageCallback(
++      "initialized",
++      base::BindRepeating(&KochNewTabPageHandler::HandleInitialized,
++                          base::Unretained(handler)));
++  web_ui->RegisterMessageCallback(
++      "getSettings",
++      base::BindRepeating(&KochNewTabPageHandler::HandleGetSettings,
++                          base::Unretained(handler)));
++  web_ui->RegisterMessageCallback(
++      "saveSettings",
++      base::BindRepeating(&KochNewTabPageHandler::HandleSaveSettings,
++                          base::Unretained(handler)));
++  web_ui->RegisterMessageCallback(
++      "getBookmarks",
++      base::BindRepeating(&KochNewTabPageHandler::HandleGetBookmarks,
++                          base::Unretained(handler)));
++  web_ui->RegisterMessageCallback(
++      "searchSuggestions",
++      base::BindRepeating(&KochNewTabPageHandler::HandleSearchSuggestions,
++                          base::Unretained(handler)));
++}
++
++KochNewTabPageUI::~KochNewTabPageUI() = default;
++
++WEB_UI_CONTROLLER_FACTORY_IMPL(KochNewTabPageUI, kChromeUIKochNewTabHost)
+diff --git a/chrome/browser/ui/webui/koch_new_tab_page/koch_new_tab_page_ui.h b/chrome/browser/ui/webui/koch_new_tab_page/koch_new_tab_page_ui.h
+new file mode 100644
+index 0000000..9999999
+--- /dev/null
++++ b/chrome/browser/ui/webui/koch_new_tab_page/koch_new_tab_page_ui.h
+@@ -0,0 +1,24 @@
++// Copyright 2024 Koch Browser Developers. All rights reserved.
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_UI_WEBUI_KOCH_NEW_TAB_PAGE_KOCH_NEW_TAB_PAGE_UI_H_
++#define CHROME_BROWSER_UI_WEBUI_KOCH_NEW_TAB_PAGE_KOCH_NEW_TAB_PAGE_UI_H_
++
++#include "content/public/browser/web_ui_controller.h"
++
++namespace content {
++class WebUI;
++}
++
++class KochNewTabPageUI : public content::WebUIController {
++ public:
++  explicit KochNewTabPageUI(content::WebUI* web_ui);
++  ~KochNewTabPageUI() override;
++
++  // disable copy
++  KochNewTabPageUI(const KochNewTabPageUI&) = delete;
++  KochNewTabPageUI& operator=(const KochNewTabPageUI&) = delete;
++
++ private:
++};
++
++#endif  // CHROME_BROWSER_UI_WEBUI_KOCH_NEW_TAB_PAGE_KOCH_NEW_TAB_PAGE_UI_H_
+diff --git a/chrome/browser/ui/webui/koch_new_tab_page/koch_new_tab_page_handler.cc b/chrome/browser/ui/webui/koch_new_tab_page/koch_new_tab_page_handler.cc
+new file mode 100644
+index 0000000..aaaaaaa
+--- /dev/null
++++ b/chrome/browser/ui/webui/koch_new_tab_page/koch_new_tab_page_handler.cc
+@@ -0,0 +1,75 @@
++// Copyright 2024 Koch Browser Developers. All rights reserved.
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "chrome/browser/ui/webui/koch_new_tab_page/koch_new_tab_page_handler.h"
++
++#include <string>
++#include <vector>
++
++#include "base/values.h"
++#include "base/json/json_reader.h"
++#include "base/json/json_writer.h"
++#include "content/public/browser/web_ui.h"
++#include "components/prefs/pref_service.h"
++#include "chrome/browser/profiles/profile.h"
++#include "chrome/common/pref_names.h"
++
++KochNewTabPageHandler::KochNewTabPageHandler(content::WebUI* web_ui)
++    : content::WebUIMessageHandler(web_ui) {}
++
++KochNewTabPageHandler::~KochNewTabPageHandler() = default;
++
++void KochNewTabPageHandler::HandleInitialized(const base::Value::List& args) {
++  AllowJavascript();
++}
++
++void KochNewTabPageHandler::HandleGetSettings(const base::Value::List& args) {
++  if (args.empty())
++    return;
++  
++  const std::string& callback_id = args[0].GetString();
++  
++  // Return default settings for now
++  base::Value::Dict settings;
++  settings.Set("theme", "ocean");
++  settings.Set("subtitle", "твоя стартовая страница");
++  settings.Set("cityA", "Moscow");
++  settings.Set("cityB", "London");
++  settings.Set("bgType", "none");
++  
++  ResolveJavascriptCallback(base::Value(callback_id), settings);
++}
++
++void KochNewTabPageHandler::HandleSaveSettings(const base::Value::List& args) {
++  if (args.size() < 2)
++    return;
++  
++  // Store settings in prefs
++  Profile* profile = Profile::FromWebUI(web_ui());
++  if (profile) {
++    PrefService* prefs = profile->GetPrefs();
++    // Custom prefs would be registered here
++  }
++}
++
++void KochNewTabPageHandler::HandleGetBookmarks(const base::Value::List& args) {
++  if (args.empty())
++    return;
++  
++  const std::string& callback_id = args[0].GetString();
++  
++  // Return empty bookmarks array for now
++  base::Value::List bookmarks;
++  ResolveJavascriptCallback(base::Value(callback_id), bookmarks);
++}
++
++void KochNewTabPageHandler::HandleSearchSuggestions(const base::Value::List& args) {
++  if (args.empty())
++    return;
++  
++  // Suggestions would be fetched from search engine
++  base::Value::List suggestions;
++  ResolveJavascriptCallback(base::Value(args[0].GetString()), suggestions);
++}
++
++void KochNewTabPageHandler::OnJavascriptAllowed() {}
++
++void KochNewTabPageHandler::OnJavascriptDisallowed() {}
+diff --git a/chrome/browser/ui/webui/koch_new_tab_page/koch_new_tab_page_handler.h b/chrome/browser/ui/webui/koch_new_tab_page/koch_new_tab_page_handler.h
+new file mode 100644
+index 0000000..bbbbbbb
+--- /dev/null
++++ b/chrome/browser/ui/webui/koch_new_tab_page/koch_new_tab_page_handler.h
+@@ -0,0 +1,32 @@
++// Copyright 2024 Koch Browser Developers. All rights reserved.
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_UI_WEBUI_KOCH_NEW_TAB_PAGE_KOCH_NEW_TAB_PAGE_HANDLER_H_
++#define CHROME_BROWSER_UI_WEBUI_KOCH_NEW_TAB_PAGE_KOCH_NEW_TAB_PAGE_HANDLER_H_
++
++#include "base/memory/weak_ptr.h"
++#include "content/public/browser/web_ui_message_handler.h"
++
++class KochNewTabPageHandler : public content::WebUIMessageHandler {
++ public:
++  explicit KochNewTabPageHandler(content::WebUI* web_ui);
++  ~KochNewTabPageHandler() override;
++
++  KochNewTabPageHandler(const KochNewTabPageHandler&) = delete;
++  KochNewTabPageHandler& operator=(const KochNewTabPageHandler&) = delete;
++
++  // Message handlers
++  void HandleInitialized(const base::Value::List& args);
++  void HandleGetSettings(const base::Value::List& args);
++  void HandleSaveSettings(const base::Value::List& args);
++  void HandleGetBookmarks(const base::Value::List& args);
++  void HandleSearchSuggestions(const base::Value::List& args);
++
++  // content::WebUIMessageHandler:
++  void OnJavascriptAllowed() override;
++  void OnJavascriptDisallowed() override;
++
++ private:
++  base::WeakPtrFactory<KochNewTabPageHandler> weak_factory_{this};
++};
++
++#endif  // CHROME_BROWSER_UI_WEBUI_KOCH_NEW_TAB_PAGE_KOCH_NEW_TAB_PAGE_HANDLER_H_
+diff --git a/chrome/browser/chrome_content_browser_client.cc b/chrome/browser/chrome_content_browser_client.cc
+index ccccccc..ddddddd 100644
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -1234,7 +1234,7 @@
+ GURL ChromeContentBrowserClient::GetDefaultUrlToLoadUponLaunch() {
+   // Use Koch Browser NTP as default startup page
+-  return GURL(chrome::kChromeUINewTabURL);
++  return GURL("chrome://koch-new-tab-page/");
+ }
+diff --git a/chrome/common/chrome_constants.cc b/chrome/common/chrome_constants.cc
+index eeeeeee..fffffff 100644
+--- a/chrome/common/chrome_constants.cc
++++ b/chrome/common/chrome_constants.cc
+@@ -45,7 +45,7 @@
+ const char kChromeUINewTabHost[] = "new-tab-page";
++const char kChromeUINewTabHost[] = "koch-new-tab-page";
+ const char kChromeUINewTabURL[] = "chrome://new-tab-page/";
++const char kChromeUINewTabURL[] = "chrome://koch-new-tab-page/";
