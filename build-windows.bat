@@ -1,175 +1,70 @@
 @echo off
-setlocal EnableDelayedExpansion
+setlocal EnableExtensions
 
-echo ==================================================
-echo   Koch Browser 1.0 - Windows Build Script
-echo   Target: x86_64 (Official Build)
-echo   OS: Windows 10/11
-echo ==================================================
+set "REPO_DIR=%~dp0"
+set "CHROMIUM_VERSION="
+set /p "CHROMIUM_VERSION="<"%REPO_DIR%chromium_version.txt"
+set "BUILD_DIR=%BUILD_DIR%"
+if "%BUILD_DIR%"=="" set "BUILD_DIR=%USERPROFILE%\koch-browser-build"
+set "CACHE_DIR=%BUILD_DIR%\download-cache"
+set "SRC_DIR=%BUILD_DIR%\src"
+set "OUT_DIR=%SRC_DIR%\out\Default"
+set "PYTHON=python"
 
-REM 1. Проверка окружения
-echo Checking build environment...
-where git >nul 2>&1 || (echo ERROR: Git not found. Please install Git for Windows. & exit /b 1)
-where python >nul 2>&1 || (echo ERROR: Python not found. Please install Python 3.10+. & exit /b 1)
-where ninja >nul 2>&1 || (echo ERROR: Ninja not found. Please add it to PATH. & exit /b 1)
+where %PYTHON% >nul 2>&1 || (echo error: Python was not found.& exit /b 1)
+where ninja >nul 2>&1 || (echo error: Ninja was not found.& exit /b 1)
+where patch >nul 2>&1 || (echo error: GNU patch was not found. Add Git usr\bin to PATH.& exit /b 1)
 
-REM 2. Настройка переменных
-set CHROMIUM_VERSION=153.0.8010.47
-set KOCH_VERSION=1.0.0
-set BUILD_DIR=%USERPROFILE%\koch-browser-build
-set SRC_DIR=%BUILD_DIR%\src
-set OUT_DIR=%SRC_DIR%\out\Default
-
-if not exist "%BUILD_DIR%" mkdir "%BUILD_DIR%"
-cd /d "%BUILD_DIR%"
-
-REM 3. Клонирование ungoogled-chromium (если еще не сделано)
-if not exist "%SRC_DIR%" (
-    echo Cloning ungoogled-chromium...
-    git clone --depth 1 --branch %CHROMIUM_VERSION% https://github.com/Bilazzzz/ungoogled-chromium.git "%SRC_DIR%"
-    cd /d "%SRC_DIR%"
-    call python build\get.py
-) else (
-    echo Source directory exists, skipping clone.
-    cd /d "%SRC_DIR%"
+if not exist "%CACHE_DIR%" mkdir "%CACHE_DIR%"
+if not exist "%SRC_DIR%\.gn" (
+  if exist "%SRC_DIR%" rmdir /s /q "%SRC_DIR%"
+  mkdir "%SRC_DIR%"
+  "%PYTHON%" "%REPO_DIR%utils\downloads.py" retrieve -c "%CACHE_DIR%" -i "%REPO_DIR%downloads.ini"
+  if errorlevel 1 (
+    echo Archive unavailable; falling back to the Chromium source tag.
+    rmdir /s /q "%SRC_DIR%"
+    "%PYTHON%" "%REPO_DIR%utils\clone.py" -o "%SRC_DIR%" -p win64 || exit /b 1
+  ) else (
+    "%PYTHON%" "%REPO_DIR%utils\downloads.py" unpack -c "%CACHE_DIR%" -i "%REPO_DIR%downloads.ini" -- "%SRC_DIR%" || exit /b 1
+  )
+)
+if not exist "%SRC_DIR%\.gn" (
+  echo error: Chromium source was not unpacked into "%SRC_DIR%".
+  exit /b 1
 )
 
-REM 4. Применение патчей Koch Browser
-echo Applying Koch Browser patches...
+"%PYTHON%" "%REPO_DIR%utils\prune_binaries.py" "%SRC_DIR%" "%REPO_DIR%pruning.list" || exit /b 1
+"%PYTHON%" "%REPO_DIR%utils\patches.py" apply "%SRC_DIR%" "%REPO_DIR%patches" || exit /b 1
+"%PYTHON%" "%REPO_DIR%utils\domain_substitution.py" apply -r "%REPO_DIR%domain_regex.list" -f "%REPO_DIR%domain_substitution.list" -c "%BUILD_DIR%\domsubcache.tar.gz" "%SRC_DIR%" || exit /b 1
 
-if not exist "patches\koch-browser" mkdir "patches\koch-browser"
-
-REM Копируем патчи из workspace (предполагается, что скрипт запускается после их создания)
-if exist "%~dp0..\workspace\patches\koch-browser" (
-    xcopy /E /I /Y "%~dp0..\workspace\patches\koch-browser\*" "patches\koch-browser\"
-)
-
-REM Добавляем патчи в series
-set SERIES_FILE=patches\series
-if not exist "%SERIES_FILE%" type nul > "%SERIES_FILE%"
-
-findstr /C:"koch-browser/0001-branding.patch" "%SERIES_FILE%" >nul || echo koch-browser/0001-branding.patch >> "%SERIES_FILE%"
-findstr /C:"koch-browser/0002-koch-ntp-integration.patch" "%SERIES_FILE%" >nul || echo koch-browser/0002-koch-ntp-integration.patch >> "%SERIES_FILE%"
-findstr /C:"koch-browser/0003-memory-optimization.patch" "%SERIES_FILE%" >nul || echo koch-browser/0003-memory-optimization.patch >> "%SERIES_FILE%"
-findstr /C:"koch-browser/0004-performance-settings-page.patch" "%SERIES_FILE%" >nul || echo koch-browser/0004-performance-settings-page.patch >> "%SERIES_FILE%"
-findstr /C:"koch-browser/0005-stability-fixes.patch" "%SERIES_FILE%" >nul || echo koch-browser/0005-stability-fixes.patch >> "%SERIES_FILE%"
-
-REM Применяем патчи
-echo Running prep.bat to apply patches...
-call build\prep.bat
-
-REM 5. Настройка флагов сборки (GN Args)
-echo Configuring GN args for Koch Browser...
-
-REM Определяем количество ядер для сборки
-wmic cpu get NumberOfLogicalProcessors | more +1 > temp.txt
-set /p NPROC=<temp.txt
-del temp.txt
-set /a JOBS=NPROC-1
-if %JOBS% LSS 1 set JOBS=1
-echo Using %JOBS% jobs for compilation (out of %NPROC% available)
-
+if not exist "%OUT_DIR%" mkdir "%OUT_DIR%"
+copy /y "%REPO_DIR%flags.gn" "%OUT_DIR%\args.gn" >nul
 (
-echo # Official Build Settings
-echo is_official_build = true
-echo is_component_ffmpeg = false
-echo use_lld = true
-echo use_thin_lto = true
-echo thin_lto_enable_optimizations = true
-echo symbol_level = 0
-echo enable_iterator_debugging = false
-echo enable_base_tracing = false
-echo enable_swiftshader = false
-echo enable_hangout_services_extension = false
-echo enable_widevine = false
-echo enable_media_remoting = false
-echo enable_mei_preload = false
-echo print_preview_destination_handler = "disabled"
-echo default_browser_name = "Koch Browser"
-echo.
-echo # API Keys ^(^Empty for privacy^)
-echo google_api_key = ""
-echo google_default_client_id = ""
-echo google_default_client_secret = ""
-echo mac_breakpad_key = ""
-echo.
-echo # Media ^& Codecs
-echo proprietary_codecs = true
-echo ffmpeg_branding = "Chrome"
-echo rtc_use_pipewire = false
-echo use_vaapi = false
-echo.
-echo # Optimization
-echo blink_enable_generated_code_formatting = false
-echo js_mode = "release"
-echo v8_optimize_maps = true
-echo v8_enable_pointer_compression = true
-echo v8_enable_sandbox = true
-echo chrome_pgo_phase = 2
-echo clang_use_chrome_plugins = false
-echo disable_fieldtrial_testing_config = true
-echo enable_one_click_signin = false
-echo enable_precompiled_headers = true
-echo enable_stripping = true
-echo.
-echo # Architecture
-echo target_cpu = "x64"
-echo custom_toolchain = "//build/toolchain/win:clang-cl"
-echo host_toolchain = "//build/toolchain/win:clang-cl"
-echo.
-echo # Windows specific
-echo is_win = true
-echo win_sdk_target_version = "10.0.22621.0"
-echo use_sysroot = false
-echo.
-echo # Performance ^& Memory
-echo max_renderers_limit = 32
-echo enable_tab_discarding = true
-echo enable_back_forward_cache = true
-) > out\Default\args.gn
+  echo.
+  echo # Windows release settings.
+  echo is_official_build = true
+  echo is_component_build = false
+  echo use_lld = true
+  echo symbol_level = 0
+  echo target_cpu = "x64"
+) >> "%OUT_DIR%\args.gn"
 
-REM 6. Генерация файлов сборки
-echo Generating build files with GN...
-gn gen out\Default --fail-on-unused-args
+pushd "%SRC_DIR%"
+set "GN_BIN=gn"
+if exist "buildtools\win\gn.exe" set "GN_BIN=buildtools\win\gn.exe"
+"%GN_BIN%" gen "%OUT_DIR%" --fail-on-unused-args || (popd & exit /b 1)
+popd
 
-REM 7. Сборка
-echo Starting compilation ^(this will take several hours...)
-echo Do not interrupt the process.
-cd /d out\Default
-ninja -j%JOBS% chrome.exe
+set "JOBS=%NUMBER_OF_PROCESSORS%"
+if "%JOBS%"=="" set "JOBS=1"
+ninja -C "%OUT_DIR%" -j%JOBS% chrome chrome_sandbox || exit /b 1
 
-if %ERRORLEVEL% neq 0 (
-    echo Compilation failed!
-    exit /b 1
-)
-
-REM 8. Создание релизного пакета
-echo Creating release package Koch Browser %KOCH_VERSION%...
-cd /d ..\..\..
-set RELEASE_DIR=KochBrowser-Windows-%KOCH_VERSION%
+set "RELEASE_DIR=%BUILD_DIR%\KochBrowser-Windows-1.0.0"
 if exist "%RELEASE_DIR%" rmdir /s /q "%RELEASE_DIR%"
 mkdir "%RELEASE_DIR%"
-
-copy "%OUT_DIR%\chrome.exe" "%RELEASE_DIR%\" >nul
-copy "%OUT_DIR%\chrome_elf.dll" "%RELEASE_DIR%\" >nul
-copy "%OUT_DIR%\icudtl.dat" "%RELEASE_DIR%\" >nul
-copy "%OUT_DIR%\v8_context_snapshot.bin" "%RELEASE_DIR%\" >nul
-xcopy /E /I /Y "%OUT_DIR%\resources" "%RELEASE_DIR%\resources" >nul 2>&1
-xcopy /E /I /Y "%OUT_DIR%\locales" "%RELEASE_DIR%\locales" >nul 2>&1
-
-REM Создаем ярлык
-powershell -Command "$WshShell = New-Object -comObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('%RELEASE_DIR%\Koch Browser.lnk'); $Shortcut.TargetPath = '%CD%\%RELEASE_DIR%\chrome.exe'; $Shortcut.Arguments = '--ozone-platform-hint=auto --enable-features=UseOzonePlatform'; $Shortcut.WorkingDirectory = '%CD%\%RELEASE_DIR%'; $Shortcut.Save()"
-
-REM Архивация с помощью PowerShell
-powershell -Command "Compress-Archive -Path '%RELEASE_DIR%' -DestinationPath 'KochBrowser-%KOCH_VERSION%-win-x64.zip' -Force"
-
-echo ==================================================
-echo   BUILD SUCCESSFUL!
-echo   Release: KochBrowser-%KOCH_VERSION%-win-x64.zip
-echo   Directory: %RELEASE_DIR%
-echo ==================================================
-echo To install locally:
-echo   Copy %RELEASE_DIR% to C:\Program Files\Koch Browser\
-echo   Create shortcut to chrome.exe
-echo Or just run: %RELEASE_DIR%\chrome.exe
-pause
+copy /y "%OUT_DIR%\chrome.exe" "%RELEASE_DIR%\" >nul
+for %%F in (chrome_elf.dll icudtl.dat v8_context_snapshot.bin) do if exist "%OUT_DIR%\%%F" copy /y "%OUT_DIR%\%%F" "%RELEASE_DIR%\" >nul
+if exist "%OUT_DIR%\resources" xcopy /E /I /Y "%OUT_DIR%\resources" "%RELEASE_DIR%\resources" >nul
+if exist "%OUT_DIR%\locales" xcopy /E /I /Y "%OUT_DIR%\locales" "%RELEASE_DIR%\locales" >nul
+powershell -NoProfile -Command "Compress-Archive -Path '%RELEASE_DIR%' -DestinationPath '%BUILD_DIR%\KochBrowser-1.0.0-win-x64.zip' -Force"
+echo Build successful: %BUILD_DIR%\KochBrowser-1.0.0-win-x64.zip
