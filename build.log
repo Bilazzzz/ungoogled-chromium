@@ -1,0 +1,7 @@
+==================================================
+  Koch Browser 1.0 - Linux Build Script
+  Target: x86_64 (Generic + Optimized)
+  OS: Arch Linux / CachyOS
+==================================================
+Installing build dependencies...
+sudo: pacman: command not found
